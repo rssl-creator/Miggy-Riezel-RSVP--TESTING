@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#102b50">
+    <meta name="description" content="Kindly reply to Miggy and Riezel's wedding invitation.">
+    <title>Wedding RSVP | Miggy and Riezel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="invitation" aria-labelledby="couple-names">
+        <div class="corner corner--top-left" aria-hidden="true"></div>
+        <div class="corner corner--top-right" aria-hidden="true"></div>
+        <div class="corner corner--bottom-left" aria-hidden="true"></div>
+        <div class="corner corner--bottom-right" aria-hidden="true"></div>
+
+        <header class="hero">
+            <h1 id="couple-names">Miggy <i>&amp;</i> Riezel</h1>
+            <div class="gold-rule" aria-hidden="true"><span>✦</span></div>
+            <p class="intro">We would like to celebrate with you. Please let us know if you can join us on December 12, 2026</p>
+        </header>
+
+        <section class="rsvp-section" aria-labelledby="rsvp-title">
+            <p class="section-kicker">Kindly reply</p>
+            <h2 id="rsvp-title">Will you join us?</h2>
+            <p class="reply-note">Please let us know if you can celebrate with us.</p>
+
+            <div class="field lookup-field">
+                <label for="guest-name">Search the name on your invitation</label>
+                <div class="lookup-row">
+                    <input id="guest-name" type="text" autocomplete="name" placeholder="Enter your invited name" required>
+                    <button class="lookup-button" id="lookup-button" type="button">Find invite</button>
+                </div>
+                <p class="lookup-status" id="lookup-status" role="status" aria-live="polite" hidden></p>
+            </div>
+
+            <form id="rsvp-form" hidden>
+                <input id="party-name" name="name" type="hidden">
+                <p class="invite-greeting" id="invite-greeting"></p>
+
+                <fieldset class="field attendance-field">
+                    <legend>Will you be attending? <span aria-hidden="true">*</span></legend>
+                    <div class="choice-row">
+                        <label class="choice-card">
+                            <input type="radio" name="attendance" value="joyfully-accepts" required>
+                            <span class="choice-mark" aria-hidden="true"></span>
+                            <span>Joyfully accepts</span>
+                        </label>
+                        <label class="choice-card">
+                            <input type="radio" name="attendance" value="regretfully-declines" required>
+                            <span class="choice-mark" aria-hidden="true"></span>
+                            <span>Regretfully declines</span>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="field invitee-field" id="invitee-field">
+                    <legend>Who from your invitation will attend?</legend>
+                    <p class="invitee-hint">Select each invited person who will be there.</p>
+                    <div class="invitee-list" id="invitee-list"></div>
+                </fieldset>
+
+                <div class="field">
+                    <label for="message">A note for the couple <span class="optional">(optional)</span></label>
+                    <textarea id="message" name="message" rows="3" placeholder="Share a note or any dietary needs"></textarea>
+                </div>
+
+                <p class="submission-status" id="submission-status" role="status" aria-live="polite" hidden></p>
+                <button class="submit-button" type="submit">Send your reply <span aria-hidden="true">→</span></button>
+                <p class="form-footnote">We can’t wait to celebrate with you.</p>
+            </form>
+            <div class="success-message" id="success-message" role="status" tabindex="-1" hidden>
+                <span class="success-icon" aria-hidden="true">✦</span>
+                <h3>Thank you for your reply!</h3>
+                <p>We’re so grateful you took a moment to let us know. To avoid duplicates, only the first RSVP under each name is recorded.</p>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span class="footer-rule" aria-hidden="true"></span>
+            <p>With love, <strong>Miggy and Riezel</strong></p>
+        </footer>
+    </main>
+    <script>
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwlx7_PhUJ6rMNPORHjvOZikYFOm7_fnYBsI--M0bgjz3MFxxBELdz8xrmsci2tSV250g/exec';
+        const form = document.querySelector('#rsvp-form');
+        const successMessage = document.querySelector('#success-message');
+        const guestNameInput = document.querySelector('#guest-name');
+        const lookupButton = document.querySelector('#lookup-button');
+        const lookupStatus = document.querySelector('#lookup-status');
+        const inviteeList = document.querySelector('#invitee-list');
+        const inviteeField = document.querySelector('#invitee-field');
+        const submitButton = form.querySelector('.submit-button');
+        const submissionStatus = document.querySelector('#submission-status');
+        let pendingRequestId = null;
+        let currentInvitation = null;
+
+        function createRequestId() {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID();
+            }
+            return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
+        function lookupInvitation(searchName) {
+            return new Promise((resolve, reject) => {
+                const callbackName = `rsvpLookup_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                const script = document.createElement('script');
+                const timeout = setTimeout(() => finish(new Error('The guest lookup took too long. Please try again.')), 12000);
+
+                function finish(error, result) {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    script.remove();
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+
+                window[callbackName] = (result) => finish(null, result);
+                script.onerror = () => finish(new Error('Could not connect to the guest list. Check the Apps Script deployment.'));
+                script.src = `${GOOGLE_SCRIPT_URL}?guestName=${encodeURIComponent(searchName)}&callback=${callbackName}`;
+                document.body.appendChild(script);
+            });
+        }
+
+        function showLookupStatus(message, isError = false) {
+            lookupStatus.textContent = message;
+            lookupStatus.className = isError ? 'lookup-status is-error' : 'lookup-status';
+            lookupStatus.hidden = !message;
+        }
+
+        function renderInvitation(invitation) {
+            currentInvitation = invitation;
+            document.querySelector('#party-name').value = invitation.mainGuest;
+            document.querySelector('#invite-greeting').textContent =
+                `Welcome, ${invitation.mainGuest}. Your invitation includes ${invitation.seats} ${invitation.seats === 1 ? 'seat' : 'seats'}.`;
+            inviteeList.replaceChildren();
+
+            invitation.guests.forEach((name) => {
+                const label = document.createElement('label');
+                label.className = 'invitee-option';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'attendingGuest';
+                checkbox.value = name;
+                const mark = document.createElement('span');
+                mark.className = 'invitee-checkmark';
+                mark.setAttribute('aria-hidden', 'true');
+                const text = document.createElement('span');
+                text.textContent = name;
+                label.append(checkbox, mark, text);
+                inviteeList.appendChild(label);
+            });
+
+            form.reset();
+            document.querySelector('#party-name').value = invitation.mainGuest;
+            form.hidden = false;
+            inviteeField.classList.remove('is-disabled');
+        }
+
+        async function findInvitation() {
+            const searchName = guestNameInput.value.trim();
+            if (!searchName) {
+                guestNameInput.focus();
+                showLookupStatus('Enter the name shown on your invitation.', true);
+                return;
+            }
+
+            if (GOOGLE_SCRIPT_URL.includes('PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE')) {
+                showLookupStatus('Add your deployed Apps Script web app URL first.', true);
+                return;
+            }
+
+            lookupButton.disabled = true;
+            lookupButton.textContent = 'Searching…';
+            form.hidden = true;
+            currentInvitation = null;
+            pendingRequestId = null;
+            showLookupStatus('Looking for your invitation…');
+
+            try {
+                const result = await lookupInvitation(searchName);
+                if (!result.found) {
+                    showLookupStatus(result.error || 'We couldn’t find that name. Please check the spelling or try another invited name.', true);
+                    return;
+                }
+                renderInvitation(result);
+                showLookupStatus('Invitation found. Select who will attend.');
+            } catch (error) {
+                showLookupStatus(error.message, true);
+            } finally {
+                lookupButton.disabled = false;
+                lookupButton.textContent = 'Find invite';
+            }
+        }
+
+        lookupButton.addEventListener('click', findInvitation);
+        guestNameInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                findInvitation();
+            }
+        });
+
+        form.addEventListener('change', (event) => {
+            if (event.target.name === 'attendance') {
+                const attending = event.target.value === 'joyfully-accepts';
+                inviteeField.classList.toggle('is-disabled', !attending);
+                inviteeList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+                    checkbox.disabled = !attending;
+                    if (!attending) checkbox.checked = false;
+                });
+            }
+
+            if (event.target.name === 'attendingGuest' && currentInvitation) {
+                const selected = inviteeList.querySelectorAll('input[name="attendingGuest"]:checked');
+                const atLimit = selected.length >= currentInvitation.seats;
+                inviteeList.querySelectorAll('input[name="attendingGuest"]:not(:checked)').forEach((checkbox) => {
+                    checkbox.disabled = atLimit || form.elements.attendance.value !== 'joyfully-accepts';
+                });
+            }
+        });
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!form.reportValidity()) return;
+
+            const attendance = form.elements.attendance.value;
+            const attendingGuests = Array.from(
+                inviteeList.querySelectorAll('input[name="attendingGuest"]:checked'),
+                (checkbox) => checkbox.value
+            );
+            if (attendance === 'joyfully-accepts' && attendingGuests.length === 0) {
+                submissionStatus.textContent = 'Select at least one invited person who will attend.';
+                submissionStatus.className = 'submission-status is-error';
+                submissionStatus.hidden = false;
+                return;
+            }
+
+            if (!currentInvitation) {
+                submissionStatus.textContent = 'Find your invitation before sending your reply.';
+                submissionStatus.className = 'submission-status is-error';
+                submissionStatus.hidden = false;
+                return;
+            }
+
+            const response = Object.fromEntries(new FormData(form).entries());
+            response.invitedGuests = currentInvitation.guests;
+            response.attendingGuests = attendance === 'joyfully-accepts' ? attendingGuests : [];
+            pendingRequestId ||= createRequestId();
+            response.requestId = pendingRequestId;
+            submitButton.disabled = true;
+            submitButton.querySelector('span').textContent = '…';
+            submitButton.firstChild.textContent = 'Sending your reply ';
+            submissionStatus.textContent = 'Sending your reply…';
+            submissionStatus.className = 'submission-status';
+            submissionStatus.hidden = false;
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(response)
+                });
+
+                form.hidden = true;
+                submissionStatus.hidden = true;
+                successMessage.hidden = false;
+                successMessage.focus();
+            } catch (error) {
+                submissionStatus.textContent = 'We couldn’t send your reply. Please check your connection and try again.';
+                submissionStatus.className = 'submission-status is-error';
+                submitButton.disabled = false;
+                submitButton.firstChild.textContent = 'Send your reply ';
+                submitButton.querySelector('span').textContent = '→';
+            }
+        });
+
+    </script>
+</body>
+</html>
+    
